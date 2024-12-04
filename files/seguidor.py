@@ -58,10 +58,6 @@ class Follower:
                     offset = len(self.log)
                     response = leader.fetch_data(self.epoch, offset)
 
-                # Atualizar log local com os dados válidos
-                if "data" in response:
-                    self.log.extend(response["data"])
-                    print(f"{self.role.capitalize()} atualizou log: {self.log}")
 
             except Exception as e:
                 print(f"Erro ao solicitar dados ao líder: {e}")
@@ -72,6 +68,12 @@ class Follower:
     def notify_new_voter(self, new_voter_uri):
         """Recebe notificação do líder sobre um novo votante."""
         print(f"Notificação recebida: Novo votante incluído no cluster: {new_voter_uri}")
+
+    @expose
+    def atualiza(self, response):
+        if "data" in response:
+            self.log.extend(response["data"])
+            print(f"{self.role.capitalize()} atualizou log: {self.log}")
 
     def notify_update(self):
         """Notificado pelo líder para buscar dados."""

@@ -16,6 +16,7 @@ class Leader:
         self.heartbeats = {}  # Últimos *heartbeats* recebidos
         self.heartbeat_timeout = 5  # Tempo limite para considerar um broker "offline"
         self.quorum_size = 2
+        self.temp_log = []
 
         Timer(5, self.monitor_heartbeats).start()
 
@@ -120,13 +121,13 @@ class Leader:
             return "Erro: Quórum insuficiente. Dados não publicados."
 
         log_entry = {"epoch": self.epoch, "data": data}
-        self.log.append(log_entry)
-        entry_index = len(self.log) - 1
+        self.temp_log = self.log
+        self.temp_log.append(log_entry)
+        entry_index = len(self.temp_log) - 1
         self.confirmations[entry_index] = 1  # O líder sempre confirma sua própria entrada
 
         print(f"Líder recebeu: {data}, notificando votantes...")
 
-        # Notifica votantes
         for follower in self.followers:
             if follower["state"] == "votante":
                 try:
@@ -140,9 +141,9 @@ class Leader:
     def fetch_data(self, epoch, offset):
         """Votantes solicitam dados a partir de um epoch e offset."""
         # Verificar se o epoch ou offset está inconsistente
-        if epoch > self.epoch or offset > len(self.log):
+        if epoch > self.epoch or offset > len(self.temp_log):
             max_epoch = self.epoch
-            last_offset = len(self.log)
+            last_offset = len(self.temp_log)
             return {
                 "error": "Inconsistência detectada",
                 "max_epoch": max_epoch,
@@ -162,6 +163,14 @@ class Leader:
         commit_count = self.confirmations[entry_index]
         if commit_count >= (len(self.followers) // 2) + 1:
             print(f"Entrada {entry_index} confirmada pelo quórum!")
+            self.log = self.temp_log
+            self.temp_log = []
+            for follower in self.followers:
+                try:
+                    proxy = Proxy(follower["uri"])
+                    proxy.atualiza(self.log[len(self.log) - 1])
+                except Exception as e:
+                    print(f"Erro ao notificar {follower['uri']}: {e}")
             return True
         return False
 
